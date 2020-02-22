@@ -1,0 +1,285 @@
+---
+title: "Homework 05 Functions and Permutation Tests"
+author: "Lena Chan"
+date: "2/21/2020"
+output:
+  word_document: default
+  html_document: default
+subtitle: S&DS 230/530/FES 757 - Due by 11:00pm, Friday Feb 21, 2020
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+This homework uses data from both the 2017 and 2018 New Haven Road Races - in particular, we look at 5k times. You can get data for [2018 HERE](http://reuningscherer.net/s&ds230/data/NHRR2018.csv) and for [2017 HERE](http://reuningscherer.net/s&ds230/data/NHRR2017.csv).
+
+To make grading easier, please leave the following line of code in your assigment.
+
+```{r}
+set.seed(1234)
+```
+
+
+
+**1) Function for Data Cleaning** *(25 points)*
+
+a) *(2 pts)* Load in both .csv files into objects called `nh2017` and `nh2018`.
+
+```{r}
+
+nh2017 <- read.csv("http://reuningscherer.net/s&ds230/data/NHRR2017.csv",as.is = TRUE)
+nh2018 <- read.csv("http://reuningscherer.net/s&ds230/data/NHRR2018.csv",as.is = TRUE)
+
+```
+
+b)  *(5 pts)*  Use `head()`, `names()`, and `str()` to check if both datasets have the same variable names and the same format (i.e does each variable have the same format in each dataset).  Comment on what you observe.
+
+```{r}
+
+head(nh2017)
+names(nh2017)
+str(nh2017)
+
+head(nh2018)
+names(nh2018)
+str(nh2018)
+
+```
+
+*The nh2017 dataset contains 2736 observations while the nh2018 dataset contains 2685 observations. Both datasets measure the same variables: "No.", "Name", "City", "Div", "Time", "Pace", and "Nettime." The variables seem to have the same format across datasets: "No." is defined by integers and the remaining 6 variables are defined by characters.*
+
+c)  *(18 pts)*  Since the two datasets seem to have the same structure, we can write a function that creates new variables in each dataset.   This function will be called `cleanNHData()`.   As a first step, I've already included code to load the `lubridate` package and define a function called `convertTimes()` similar to that we used in Class 9.
+
+I've started the outline of the function below.  Your job is to follow the exact process we used in class 9 to clean the 2018 data.  You need to replace each comment line in the `cleanNHData()` function with the code that will perform this task.   You literally just need to find the relevant line in the class code and put this into the `cleanNHData()` function.  The one exception is a new line you'll need to write that deletes rows where `Name` is missing (i.e. equal to "")
+
+Then, run the function on `nh2017` and `nh2018`.
+
+```{r}
+library(lubridate)
+convertTimes <- function(v) {
+  hourplus <- nchar(v) == 7
+  wrongformat <- nchar(v) == 8
+  outtimes <- ms(v)
+  if (sum(hourplus) > 0) { # if there is at least 1 time that exceeds 1 hr
+    outtimes[hourplus] <- hms(v[hourplus])
+  }
+  if (sum(wrongformat) > 0) { # if there is at least 1 time in wrong format
+    outtimes[wrongformat] <- ms(substr(v[wrongformat],1,5))
+  }
+  outtimes <- as.numeric(outtimes)/60
+  return(outtimes)
+}
+
+cleanNHData <- function(data) {
+  data$Div[data$Div == ""] <- NA
+  data$Gender <- substr(data$Div, 1, 1)
+  data$AgeGrp <- substr(data$Div, 2, nchar(data$Div)) 
+  data$Nettime_min <- convertTimes(data$Nettime)
+  data$Time_min <- convertTimes(data$Time)
+  data$Pace_min <- convertTimes(data$Pace)
+  data <- data[data$Name != "", ]
+  return(data)
+}
+
+nh2018 <- cleanNHData(nh2018)
+nh2017 <- cleanNHData(nh2017)
+
+```
+
+
+**2) Repeat Runners Dataset** *(38 points)*
+
+We now create a dataset that looks at times of runners who ran in both 2018 and 2017.  
+
+a)  *(5 pts)* We'll have problems if we have instances of two runners having the same name.   A crude fix is to delete the second occurance of anyone with a duplicate name.
+
+Run the code below to see how the function `duplicated()` works:
+
+```{r}
+
+duplicated(c("cat","cat","dog","llama"))
+
+```
+
+Esentially, this returns a vector that is `FALSE` if an observation value is the first occurrence of this value and `TRUE` when a value has been seen before.   
+
+To merge our two datasets, we need to start with unique `Name` values in each dataset.  Using the `duplicated()` function, create two new dataframes called `nh2018Unq` and `nh2017Unq` so that each only retains observations for the first occurence of each value of `Name` (if you use the `!` operator, this is two short lines of code).  
+
+Get the dimensions of each of the four relevant dataframes.   How many observations were eliminated from each year?
+
+```{r}
+
+#remove non-unique names
+nh2018Unq <- nh2018[!duplicated(nh2018$Name),]
+nh2017Unq <- nh2017[!duplicated(nh2017$Name),]
+
+#compare dimensions for data from 2018
+dim(nh2018)
+dim(nh2018Unq)
+2685-2640
+
+#compare dimensions for data from 2017
+dim(nh2017)
+dim(nh2017Unq)
+2727-2720
+
+```
+
+*After removing non-unique names, 45 observations were eliminated in 2018 and 7 observations were eliminated in 2017.*
+
+b)  *(5 pts)* Next, we need to get a list of names that occur in both datasets.  Run the code below to see how the `intersect()` function works.
+
+```{r}
+intersect(c("cat", "dog", "llama"), c("cat","llama","chincilla"))
+```
+
+Using the `intersect()` function, create an object called `repeatrunners` that is a list of names of people who ran in both years.  How many runners ran in both years?
+
+```{r}
+
+repeatrunners <- intersect(nh2018Unq$Name, nh2017Unq$Name)
+length(repeatrunners)
+
+```
+
+*There are 986 repeat runners across the 2017 and 2018 races.*
+
+c)  *(18 pts)* The code below will create a combined dataset called `nhcombined`.  Your job in this section is to write a one or two line comment above each line of code to describe what the line does.  You'll want to run each line, probably see what the result was, and in some cases use the help file for some functions to see what the function does (i.e. for the `merge()` function).  Make sure you remove `eval = FALSE` in the r chunk.
+
+
+```{r}
+
+#Defines a TRUE/FALSE vector that reports "TRUE" for unique names from the 2018 New Haven race that also ran in the 2017 New Haven race and "FALSE" for unique names from the 2018 New Haven race that did not also run in the 2017 New Haven race.
+w <- nh2018Unq$Name %in% repeatrunners 
+
+#Defines combined dataset `nhcombined` that displays the Name, Gender, and Nettime to complete the race for all unique runners from the 2018 New Haven race that also ran in the 2017 New Haven race.
+nhcombined <- data.frame(Name = nh2018Unq$Name[w],
+                         Gender = nh2018Unq$Gender[w],
+                         Nettime_2018 = nh2018Unq$Nettime_min[w])
+
+#Merges nhcombined with the Name and Nettime_min columns for unique names from the 2017 New Haven race.
+nhcombined <- merge(nhcombined, nh2017Unq[, c("Name", "Nettime_min")])
+
+#Removes rows within nhcombined that are missing values for Gender.
+nhcombined <- nhcombined[!is.na(nhcombined$Gender),]
+
+#Renames the 4th column of nhcombined from "Nettime_min" to "Nettime_2017".
+colnames(nhcombined)[4] <- "Nettime_2017"
+
+#Finds the dimensions of nhcombined.
+dim(nhcombined)
+
+#Displays the first 6 lines of nhcombined.
+head(nhcombined)
+
+```
+
+d)  *(6 pts)* Create a new variable in the data frame `nhcombined` called `improvement` that is the improvement in run time from 2017 to 2018 (a positive number here should indicate an improvement,a negative number means they did worse in 2018). Get summary statistics for `nhcombined`.  Then make a histogram of `improvement`.  Comment on the summary statistics and what you observe in the histogram.
+
+```{r}
+
+nhcombined$improvement <- (nhcombined$Nettime_2017 - nhcombined$Nettime_2018)
+summary(nhcombined$improvement)
+hist(nhcombined$improvement, xlab="Improvement in Minutes", main="Histogram of Improvement \n in Run Time from 2017 to 2018 Races",col="Blue",breaks=100)
+
+```
+
+*The mean improvement run time from 2017 to 2018 races is -1.11 minutes, suggesting that individuals who participated in both races ran slightly slower in the second race on average. The histogram of improvement run time in minutes demonstrates a relatively symmetric distribution with a wide range that spans from -64.52 minutes to 150.27 minutes. The value 150.27 minutes is an extreme high outlier, suggesting that some individuals ran significantly faster in the 2018 race than the 2017 race. The value -64.52 minutes is a low outlier, suggesting that some individuals ran significantly slower in the 2018 race than the 2017 race (although to a lesser degree than those individuals who ran faster in the 2018 race than the 2017 race). However, because the majority of the dataset is centered around 0 minutes, most individuals ran approximately the same time in the 2017 and 2018 races.*
+
+e)  *(4 pts)* You'll notice a few extreme values (i.e. people got amazingly better or worse).   Print the rows of `nhcombined` that had improvement times of more than 50 in absolute value.  Update the `nhcombined` dataframe to exclude these rows and make the histogram again.
+
+```{r}
+
+print(nhcombined[abs(nhcombined$improvement) > 50,])
+nhcombined <- nhcombined[!abs(nhcombined$improvement) > 50,]
+hist(nhcombined$improvement, xlab="Improvement in Minutes", main="Histogram of Improvement \n in Run Time from 2017 to 2018 Races",col="Blue",breaks=100)
+
+```
+
+
+**3) Run Time Improvements** *(37 pts)*
+
+a)  *(6 pts)* Make a side-by-side boxplot to see differences between improvements between Females and Males.   Does there appear to be any difference between groups?  Comment both on center and spread.
+
+```{r}
+
+boxplot(nhcombined$improvement ~ nhcombined$Gender, main="Improvement in Run Time from 2017 to 2018 \n Races between Males and Females", col = "Forest Green", xlab = "Gender", ylab = "Improvement in Minutes")
+
+by(nhcombined$improvement, nhcombined$Gender, summary) 
+
+```
+
+*The improvement in run time from 2017 to 2018 races appears quite similar across females and males. The distribution of improvement for female runners is centered at -1.38 minutes, while the distribution of improvement for male runners is similarly centered at -1.15 minutes. It appears that both females and males run at slightly slower times in the 2018 race as opposed to the 2017 race. The two groups also demonstrate similar spread. The distribution of improvement for female runners ranges from -21.78 minutes to 15.50 minutes, while the distribution of improvement for male runners ranges from -24.62 minutes to 13.13 seconds.*
+
+b) *(16 pts)* Using a 95% bootstrap confidence interval, what can you say about the average improvement among the population of all female repeat 5K runners? Do the same for male repeat 5K runners. You don't need to make any histograms of your bootstrap results, and you don't need to use the `t.test()` function.  You also are not comparing the means of these two groups - you're getting seperate intervals for each gender group.
+
+```{r}
+
+#95% bootstrap confidence interval for average improvement among female runners
+
+nhcombinedfemale <- nhcombined[nhcombined$Gender == "F",]
+n <- nrow(nhcombinedfemale)
+n_samp <-  10000
+meanfemale <-  rep(NA, n_samp) 
+for(i in 1:n_samp){
+  s <-  sample(nhcombinedfemale$improvement, n, replace=T)
+  meanfemale[i] <-  mean(s)
+}
+
+cifemale <-  quantile(meanfemale, c(.025, .975))
+round(cifemale,2)
+
+#95% bootstrap confidence interval for average improvement among male runners
+
+nhcombinedmale <- nhcombined[nhcombined$Gender == "M",]
+n <- nrow(nhcombinedmale)
+n_samp <-  10000
+meanmale <-  rep(NA, n_samp) 
+for(i in 1:n_samp){
+  s <-  sample(nhcombinedmale$improvement, n, replace=T)
+  meanmale[i] <-  mean(s)
+}
+
+cimale <-  quantile(meanmale, c(.025, .975))
+round(cimale,2)
+
+```
+
+*The bootstrap 95% confidence interval for the average improvement among female runners ranges from -1.76 minutes to -1.0 minutes, while the bootstrap 95% confidence interval for the average improvement among male runners ranges from -1.5 minutes to -0.8 minutes.*
+
+
+c) *(15 pts)* Using a permutation test, examine whether there a significant difference in the **MEDIAN** improvement between males and females. Use a significance level of 0.05. Be sure to state (in words is fine) the null and alternative hypotheses, and justify your conclusion.  Be sure to include a histogram of results and add a vertical line that shows that observed difference in medians (see example in code from class).
+
+
+```{r}
+
+#Ho: the median improvement of female runners - the median improvement of male runners = 0.
+#Ha: the median improvement of female runners - the median improvement of male runners does not equal 0.
+
+#define the actual observed difference in median improvement between females and males
+(actualdiff <- by(nhcombined$improvement, nhcombined$Gender, median))
+(actualdiff <- actualdiff[1] - actualdiff[2])
+
+#permutation test
+N <- 10000
+diffvals <- rep(NA, N)
+for (i in 1:N) {
+  fakegender <- sample(nhcombined$Gender)
+  diffvals[i] <- median(nhcombined$improvement[fakegender == "F"]) - median(nhcombined$improvement[fakegender == "M"])
+}
+
+#histogram of permuted median differences
+hist(diffvals, col = "Red", main = "Permuted Sample Median Differences \n in Improvement across Females and Males", xlab = "Seconds", breaks = 50)
+abline(v = actualdiff, col = "Blue", lwd = 3)
+text(actualdiff - .03, 650 , paste("Actual Diff in Means =", round(actualdiff,2)),srt = 90)
+
+
+#two-sided p-value for difference of medians
+mean(abs(diffvals) >= abs(actualdiff))
+
+```
+
+
+*The chance of seeing an actual median difference of -.283 minutes is 8.58%. Since p = .0858 is greater than .05, we fail to reject the null hypothesis that the median improvement of female runners is significantly different from the median improvement of male runners.*
+
